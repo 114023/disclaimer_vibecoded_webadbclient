@@ -128,7 +128,13 @@ connectButton.addEventListener("click", async () => {
     log("Opening the ADB USB connection…");
     const connection = await device.connect();
 
-    const credentialManager = new adbModule.AdbWebCryptoCredentialManager();
+    const credentialStorage =
+  new credentialModule.TangoIndexedDbStorage();
+
+const credentialManager =
+  new credentialModule.AdbWebCryptoCredentialManager(
+    credentialStorage
+  );
     const transport = await adbModule.adbDaemonAuthenticate({
       serial: device.serial,
       connection,
