@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Secondary Display Workspace</title>
+<style>
+:root{color-scheme:dark;--bg:#0b0c10;--panel:#1f2833;--cyan:#45f3ff;--muted:#9aa8b8}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;background:var(--bg);color:#e7edf5;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+#app{height:100%;display:flex;flex-direction:column}
+header{height:64px;flex:none;background:var(--panel);border-bottom:2px solid var(--cyan);display:flex;align-items:center;justify-content:space-between;padding:0 22px;gap:16px;z-index:5}
+.brand{font-weight:750;letter-spacing:.3px}.tag{font-size:10px;background:var(--cyan);color:#061014;border-radius:4px;padding:3px 6px;margin-left:8px;font-weight:800}
+.controls{display:flex;align-items:center;gap:12px}.status{display:flex;align-items:center;gap:8px;background:#121a22;padding:7px 12px;border-radius:20px;font-size:13px;color:#bdc9d8}
+.dot{width:8px;height:8px;border-radius:50%;background:#ff5555}.dot.ok{background:#00e6ad;box-shadow:0 0 8px #00e6ad}
+button{border:0;border-radius:6px;padding:10px 16px;font-weight:650;cursor:pointer;transition:.15s}
+button:disabled{opacity:.45;cursor:not-allowed}
+.primary{background:var(--cyan);color:#061014}.secondary{background:#354353;color:white;border:1px solid #536478}
+button:hover:not(:disabled){filter:brightness(1.08);transform:translateY(-1px)}
+#viewport{position:relative;flex:1;min-height:0;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#splash{width:min(560px,calc(100% - 32px));background:var(--panel);border:1px solid #354252;border-radius:12px;padding:28px;box-shadow:0 12px 38px #0009}
+h1{font-size:23px;margin:0 0 10px}p{color:var(--muted);font-size:14px;line-height:1.5}
+.steps{padding-left:20px;color:#c4cfdd;font-size:13px;line-height:1.7}
+#connect{margin-top:10px;width:100%;font-size:15px;padding:13px}
+#screen{display:none;max-width:100%;max-height:100%;object-fit:contain;background:#000}
+#floatExit{display:none;position:absolute;top:14px;right:14px;z-index:8;background:#111d;color:white;border:1px solid #ffffff44}
+body.fullscreen header{display:none}
+body.fullscreen #floatExit{display:block}
+#log{margin-top:14px;background:#101820;border:1px solid #334252;border-radius:7px;padding:10px;font-size:12px;color:#b8c7d8;white-space:pre-wrap;max-height:105px;overflow:auto}
+#help{font-size:12px;color:#91a1b3;margin-top:10px}
+@media(max-width:600px){header{padding:0 12px}.brand{font-size:14px}.tag{display:none}.status{font-size:11px}.controls{gap:7px}}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <div class="brand">Workspace Monitor <span class="tag">VIRTUAL DISPLAY 1</span></div>
+  <div class="controls">
+    <div class="status"><span id="dot" class="dot"></span><span id="status">Disconnected</span></div>
+    <button id="fs" class="secondary" hidden>Go Fullscreen</button>
+  </div>
+</header>
+<main id="viewport">
+  <section id="splash">
+    <h1>Launch Secondary Stream</h1>
+    <p>Connect an Android device with USB debugging enabled. Approve the ADB authorization prompt on the device when it appears.</p>
+    <ol class="steps">
+      <li>Use Chrome or Edge on HTTPS or localhost.</li>
+      <li>Connect the device with a data-capable USB cable and enable USB debugging.</li>
+      <li>Close other ADB programs if the device is already in use.</li>
+    </ol>
+    <button id="connect" class="primary">⚡ Connect Android Device</button>
+    <div id="log" role="status">Ready. Libraries load when you connect.</div>
+    <div id="help">This page uses Tango ADB / Scrcpy browser packages from esm.sh. An internet connection is required to load them.</div>
+  </section>
+  <canvas id="screen"></canvas>
+  <button id="floatExit">✕ Exit Fullscreen</button>
+</main>
+</div>
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const connectButton = $("connect");
+const statusLabel = $("status");
+const dot = $("dot");
+const logBox = $("log");
+const splash = $("splash");
+const canvas = $("screen");
+const fsButton = $("fs");
+let adb = null;
+let scrcpyClient = null;
+let decoder = null;
+let usbDevice = null;
+let connected = false;
+
+function log(message) {
+  logBox.textContent = message;
+  console.info("[Workspace Monitor]", message);
+}
+function setStatus(message, isConnected = false) {
+  statusLabel.textContent = message;
+  dot.classList.toggle("ok", isConnected);
+}
+function friendlyError(error) {
+  const name = error?.name || "";
+  const message = error?.message || String(error);
+  if (name === "NotFoundError") return "No device selected. Choose an Android device in the USB picker.";
+  if (name === "SecurityError") return "The browser blocked USB access. Open this page in Chrome/Edge on HTTPS or localhost.";
+  if (name === "DeviceBusyError") return "The ADB interface is already in use. Close Android Studio, another mirroring app, or another ADB browser tab, then retry.";
+  if (/WebUSB|navigator\.usb/i.test(message)) return "WebUSB is unavailable. Use a Chromium browser on HTTPS or localhost.";
+  return message;
+}
+
+connectButton.addEventListener("click", async () => {
+  if (connected) return;
+  connectButton.disabled = true;
+  setStatus("Loading libraries…");
+  log("Loading ADB and Scrcpy browser libraries…");
+
+  try {
+    if (!window.isSecureContext || !("usb" in navigator)) {
+      throw new Error("WebUSB requires Chrome/Edge and a secure page (HTTPS or localhost).");
+    }
+
+    // Load real ES modules. The previous script tags pointed to jsdelivr.net itself,
+    // which does not expose the required ADB/Scrcpy classes.
+    const [
+      adbModule,
+      usbModule,
+      scrcpyModule,
+      decoderModule
+    ] = await Promise.all([
+      import("https://esm.sh/@yume-chan/adb"),
+      import("https://esm.sh/@yume-chan/adb-daemon-webusb"),
+      import("https://esm.sh/@yume-chan/adb-scrcpy"),
+      import("https://esm.sh/@yume-chan/scrcpy-decoder-tinyh264")
+    ]);
+
+    const Manager = usbModule.AdbDaemonWebUsbDeviceManager.BROWSER;
+    if (!Manager) throw new Error("This browser does not provide WebUSB.");
+
+    setStatus("Choose device…");
+    log("Select your Android device in the browser's USB permission window.");
+    const device = await Manager.requestDevice();
+    if (!device) throw new Error("No device was selected.");
+    usbDevice = device;
+
+    setStatus("Connecting…");
+    log("Opening the ADB USB connection…");
+    const connection = await device.connect();
+
+    const credentialManager = new adbModule.AdbWebCryptoCredentialManager();
+    const transport = await adbModule.adbDaemonAuthenticate({
+      serial: device.serial,
+      connection,
+      credentialManager,
+      onPublicKeyAuthentication: () => {
+        log("Waiting for you to approve this computer's ADB key on the Android device…");
+      }
+    });
+    adb = new adbModule.Adb(transport);
+
+    // Scrcpy server 3.1 is the newest protocol version supported by this
+    // pinned options class. Download the official server binary and push it.
+    setStatus("Preparing stream…");
+    log("Downloading the Scrcpy 3.1 server…");
+    const serverUrl = "https://github.com/Genymobile/scrcpy/releases/download/v3.1/scrcpy-server-v3.1";
+    const response = await fetch(serverUrl);
+    if (!response.ok || !response.body) {
+      throw new Error("Could not download the Scrcpy server. Check your internet connection or use the server-file fallback in the next revision.");
+    }
+    await scrcpyModule.AdbScrcpyClient.pushServer(adb, response.body);
+
+    const Options = scrcpyModule.AdbScrcpyOptions3_1;
+    if (!Options) throw new Error("The loaded Scrcpy package does not include the 3.1 options class.");
+    const options = new Options({
+      displayId: 1,
+      video: true,
+      audio: false,
+      control: true,
+      videoBitRate: 12000000,
+      maxFps: 60,
+      tunnelForward: true
+    });
+
+    log("Starting Scrcpy on Android display 1…");
+    scrcpyClient = await scrcpyModule.AdbScrcpyClient.start(
+      adb,
+      "/data/local/tmp/scrcpy-server.jar",
+      options
+    );
+
+    if (!scrcpyClient.videoStream) throw new Error("Scrcpy started, but no video stream was created.");
+    const video = await scrcpyClient.videoStream;
+
+    decoder = new decoderModule.TinyH264Decoder({ canvas });
+    canvas.style.display = "block";
+    splash.style.display = "none";
+    fsButton.hidden = false;
+    connected = true;
+    setStatus("Live: Display 1", true);
+    log(`Connected. Video codec: ${video.metadata.codec}.`);
+
+    void video.stream.pipeTo(decoder.writable).catch((error) => {
+      console.error(error);
+      setStatus("Stream ended");
+      log("The video stream ended: " + friendlyError(error));
+      connected = false;
+      connectButton.disabled = false;
+    });
+  } catch (error) {
+    console.error(error);
+    const message = friendlyError(error);
+    setStatus("Disconnected");
+    log("Connection failed: " + message);
+    connectButton.disabled = false;
+    if (adb) {
+      try { await adb.close(); } catch {}
+      adb = null;
+    }
+  }
+});
+
+async function toggleFullscreen() {
+  try {
+    if (!document.fullscreenElement) {
+      await $("app").requestFullscreen();
+    } else {
+      await document.exitFullscreen();
+    }
+  } catch (error) {
+    log("Fullscreen error: " + friendlyError(error));
+  }
+}
+fsButton.addEventListener("click", toggleFullscreen);
+$("floatExit").addEventListener("click", toggleFullscreen);
+document.addEventListener("fullscreenchange", () => {
+  document.body.classList.toggle("fullscreen", !!document.fullscreenElement);
+  fsButton.textContent = document.fullscreenElement ? "Windowed Mode" : "Go Fullscreen";
+});
+</script>
+</body>
+</html>
