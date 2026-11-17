@@ -110,11 +110,11 @@ connectButton.addEventListener("click", async () => {
   decoderModule,
   credentialModule
 ] = await Promise.all([
-  import("https://esm.sh/@yume-chan/adb"),
-  import("https://esm.sh/@yume-chan/adb-daemon-webusb"),
-  import("https://esm.sh/@yume-chan/adb-scrcpy"),
+  import("https://esm.sh/@yume-chan/adb@2.1.0"),
+  import("https://esm.sh/@yume-chan/adb-daemon-webusb@2.1.0"),
+  import("https://esm.sh/@yume-chan/adb-scrcpy@2.1.0"),
   import("https://esm.sh/@yume-chan/scrcpy-decoder-tinyh264"),
-  import("https://esm.sh/@yume-chan/adb-credential-web")
+  import("https://esm.sh/@yume-chan/adb-credential-web@2.1.0")
 ]);
 
     const Manager = usbModule.AdbDaemonWebUsbDeviceManager.BROWSER;
@@ -130,8 +130,9 @@ connectButton.addEventListener("click", async () => {
     log("Opening the ADB USB connection…");
     const connection = await device.connect();
 
-    const credentialStorage =
-  new credentialModule.TangoIndexedDbStorage();
+    console.log("Credential exports:", Object.keys(credentialModule));
+
+const credentialStorage = new credentialModule.TangoIndexedDbStorage();
 
 const credentialManager =
   new credentialModule.AdbWebCryptoCredentialManager(
