@@ -51,7 +51,7 @@ body.fullscreen #floatExit{display:block}
     </ol>
     <button id="connect" class="primary">⚡ Connect Android Device</button>
     <div id="log" role="status">Ready. Libraries load when you connect.</div>
-    <div id="help">This page uses Tango ADB / Scrcpy browser packages from esm.sh. An internet connection is required to load them.</div>
+    <div id="help">Uses Tango ADB / Scrcpy browser packages from esm.sh. Requires Chrome or Edge, HTTPS or localhost, and an internet connection.</div>
   </section>
   <canvas id="screen"></canvas>
   <button id="floatExit">✕ Exit Fullscreen</button>
@@ -104,18 +104,18 @@ connectButton.addEventListener("click", async () => {
     // Load real ES modules. The previous script tags pointed to jsdelivr.net itself,
     // which does not expose the required ADB/Scrcpy classes.
     const [
-  adbModule,
-  usbModule,
-  scrcpyModule,
-  decoderModule,
-  credentialModule
-] = await Promise.all([
-  import("https://esm.sh/@yume-chan/adb@2.1.0"),
-  import("https://esm.sh/@yume-chan/adb-daemon-webusb@2.1.0"),
-  import("https://esm.sh/@yume-chan/adb-scrcpy@2.1.0"),
-  import("https://esm.sh/@yume-chan/scrcpy-decoder-tinyh264"),
-  import("https://esm.sh/@yume-chan/adb-credential-web@2.1.0")
-]);
+      adbModule,
+      usbModule,
+      scrcpyModule,
+      decoderModule,
+      credentialModule
+    ] = await Promise.all([
+      import("https://esm.sh/@yume-chan/adb@2.1.0"),
+      import("https://esm.sh/@yume-chan/adb-daemon-webusb@2.1.0"),
+      import("https://esm.sh/@yume-chan/adb-scrcpy@2.1.0"),
+      import("https://esm.sh/@yume-chan/scrcpy-decoder-tinyh264"),
+      import("https://esm.sh/@yume-chan/adb-credential-web@2.1.0")
+    ]);
 
     const Manager = usbModule.AdbDaemonWebUsbDeviceManager.BROWSER;
     if (!Manager) throw new Error("This browser does not provide WebUSB.");
@@ -130,19 +130,29 @@ connectButton.addEventListener("click", async () => {
     log("Opening the ADB USB connection…");
     const connection = await device.connect();
 
-    const credentialModule = await import(
-  "https://esm.sh/@yume-chan/adb-credential-web@2.1.0?bundle"
-);
+    // credentialModule was already imported in the Promise.all above.
+    // Do not redeclare it here: a duplicate const declaration prevents this
+    // entire module script from running, so the Connect button gets no handler.
+    console.log("Credential exports:", Object.keys(credentialModule));
 
-console.log("Credential exports:", Object.keys(credentialModule));
+    const Storage = credentialModule.TangoLocalStorage;
+    const CredentialManager = credentialModule.AdbWebCryptoCredentialManager;
 
-const credentialStorage =
-  new credentialModule.TangoLocalStorage("workspace-adb-key");
+    if (typeof Storage !== "function") {
+      throw new Error(
+        "TangoLocalStorage was not exported by @yume-chan/adb-credential-web. Exports: " +
+        Object.keys(credentialModule).join(", ")
+      );
+    }
+    if (typeof CredentialManager !== "function") {
+      throw new Error(
+        "AdbWebCryptoCredentialManager was not exported by @yume-chan/adb-credential-web. Exports: " +
+        Object.keys(credentialModule).join(", ")
+      );
+    }
 
-const credentialManager =
-  new credentialModule.AdbWebCryptoCredentialManager(
-    credentialStorage
-  );
+    const credentialStorage = new Storage("workspace-adb-key");
+    const credentialManager = new CredentialManager(credentialStorage);
     const transport = await adbModule.adbDaemonAuthenticate({
       serial: device.serial,
       connection,
