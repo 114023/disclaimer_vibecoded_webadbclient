@@ -25,7 +25,7 @@ select,input{background:#121a22;color:#e7edf5;border:1px solid #445569;padding:8
 select:focus,input:focus{outline:1px solid var(--cyan);border-color:var(--cyan)}
 button:hover:not(:disabled){filter:brightness(1.08);transform:translateY(-1px)}
 #viewport{position:relative;flex:1;min-height:0;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
-#splash{width:min(560px,calc(100% - 32px));background:var(--panel);border:1px solid #354252;border-radius:12px;padding:28px;box-shadow:0 12px 38px #0009}
+#splash{width:min(580px,calc(100% - 32px));background:var(--panel);border:1px solid #354252;border-radius:12px;padding:28px;box-shadow:0 12px 38px #0009}
 h1{font-size:23px;margin:0 0 10px}
 p{color:var(--muted);font-size:14px;line-height:1.5}
 .steps{padding-left:20px;color:#c4cfdd;font-size:13px;line-height:1.7}
@@ -33,18 +33,20 @@ p{color:var(--muted);font-size:14px;line-height:1.5}
 .field-row label{font-size:13px;color:#c4cfdd;white-space:nowrap;font-weight:600}
 .field-row select{flex:1;min-width:0}
 .field-row input[type="number"]{width:96px}
+.action-row{display:flex;gap:10px;margin-top:14px}
+.action-row #connect{flex:1;font-size:15px;padding:13px}
+.action-row button.secondary{padding:13px 14px;white-space:nowrap}
 #detectedPicker{display:none;margin-top:14px;padding:14px;background:#141c24;border:1px solid #394b5e;border-radius:8px}
 #detectedPicker .picker-title{font-size:13px;font-weight:650;color:#e7edf5;margin-bottom:8px}
 #detectedList{display:flex;flex-direction:column;gap:8px}
 .display-option{display:flex;align-items:center;justify-content:space-between;background:#1f2833;border:1px solid #3d4f63;border-radius:6px;padding:10px 12px;color:#e7edf5;text-align:left}
 .display-option:hover{border-color:var(--cyan)}
 .display-option span{font-size:12px;color:var(--muted)}
-#connect{margin-top:14px;width:100%;font-size:15px;padding:13px}
 #screen{display:none;max-width:100%;max-height:100%;object-fit:contain;background:#000}
 #floatExit{display:none;position:absolute;top:14px;right:14px;z-index:8;background:#111d;color:white;border:1px solid #ffffff44}
 body.fullscreen header{display:none}
 body.fullscreen #floatExit{display:block}
-#log{margin-top:14px;background:#101820;border:1px solid #334252;border-radius:7px;padding:10px;font-size:12px;color:#b8c7d8;white-space:pre-wrap;max-height:105px;overflow:auto}
+#log{margin-top:14px;background:#101820;border:1px solid #334252;border-radius:7px;padding:10px;font-size:12px;color:#b8c7d8;white-space:pre-wrap;max-height:130px;overflow:auto;line-height:1.45}
 #help{font-size:12px;color:#91a1b3;margin-top:10px}
 @media(max-width:720px){
   header{padding:0 12px;height:auto;min-height:60px}
@@ -69,11 +71,11 @@ body.fullscreen #floatExit{display:block}
 <main id="viewport">
   <section id="splash">
     <h1>Launch Secondary Stream</h1>
-    <p>Connect an Android device with USB debugging enabled. Approve the ADB authorization prompt on the device when it appears.</p>
+    <p>Connect an Android device with USB debugging enabled. Keep the device unlocked and approve the ADB prompt when it appears.</p>
     <ol class="steps">
-      <li>Use Chrome or Edge on HTTPS or localhost.</li>
-      <li>Connect the device with a data-capable USB cable and enable USB debugging.</li>
-      <li>Close other ADB programs if the device is already in use.</li>
+      <li>Close Android Studio, desktop Scrcpy, or any terminal running <code>adb</code> so nothing else holds the USB interface.</li>
+      <li>Unlock your Android device and set USB mode to <strong>File Transfer (MTP)</strong>.</li>
+      <li>If no prompt appears, toggle <strong>USB debugging</strong> OFF and ON in Developer Options.</li>
     </ol>
 
     <div class="field-row">
@@ -92,7 +94,12 @@ body.fullscreen #floatExit{display:block}
       <div id="detectedList"></div>
     </div>
 
-    <button id="connect" class="primary">⚡ Connect Android Device</button>
+    <div class="action-row">
+      <button id="connect" class="primary">⚡ Connect Android Device</button>
+      <button id="cancelConnect" class="secondary" hidden>Cancel</button>
+      <button id="resetKeys" class="secondary" title="Delete saved browser ADB key to force a new Android authorization dialog">Reset ADB Key</button>
+    </div>
+
     <div id="log" role="status">Ready. Libraries load when you connect.</div>
     <div id="help">Uses Tango ADB / Scrcpy browser packages from esm.sh. Requires Chrome or Edge, HTTPS or localhost, and an internet connection.</div>
   </section>
@@ -104,6 +111,8 @@ body.fullscreen #floatExit{display:block}
 <script type="module">
 const $ = (id) => document.getElementById(id);
 const connectButton = $("connect");
+const cancelConnectButton = $("cancelConnect");
+const resetKeysButton = $("resetKeys");
 const disconnectButton = $("disconnect");
 const statusLabel = $("status");
 const dot = $("dot");
@@ -123,12 +132,15 @@ const SERVER_URL = "https://github.com/Genymobile/scrcpy/releases/download/v3.1/
 let canvas = $("screen");
 let libs = null;
 let adb = null;
+let activeConnection = null;
 let scrcpyClient = null;
 let decoder = null;
 let connected = false;
 let currentDisplayId = null;
 let availableDisplays = [];
 let streamToken = 0;
+let connectAttemptId = 0;
+let authWatchdog = null;
 
 function log(message) {
   logBox.textContent = message;
@@ -145,7 +157,9 @@ function friendlyError(error) {
   const message = error?.message || String(error);
   if (name === "NotFoundError") return "No device selected. Choose an Android device in the USB picker.";
   if (name === "SecurityError") return "The browser blocked USB access. Open this page in Chrome/Edge on HTTPS or localhost.";
-  if (name === "DeviceBusyError") return "The ADB interface is already in use. Close Android Studio, another mirroring app, or another ADB browser tab, then retry.";
+  if (name === "DeviceBusyError" || /unable to claim interface/i.test(message)) {
+    return "The ADB USB interface is claimed by another program. Run `adb kill-server` or close Android Studio / desktop Scrcpy, then retry.";
+  }
   if (/WebUSB|navigator\.usb/i.test(message)) return "WebUSB is unavailable. Use a Chromium browser on HTTPS or localhost.";
   return message;
 }
@@ -155,6 +169,13 @@ function unwrapModule(mod) {
     return { ...mod.default, ...mod };
   }
   return mod;
+}
+
+function clearAuthWatchdog() {
+  if (authWatchdog) {
+    clearTimeout(authWatchdog);
+    authWatchdog = null;
+  }
 }
 
 initialDisplayMode.addEventListener("change", () => {
@@ -310,6 +331,7 @@ async function startDisplayStream(displayId) {
   detectedPicker.style.display = "none";
   fsButton.hidden = false;
   disconnectButton.hidden = false;
+  cancelConnectButton.hidden = true;
   headerDisplaySelect.disabled = false;
   connected = true;
 
@@ -326,10 +348,16 @@ async function startDisplayStream(displayId) {
 }
 
 async function disconnectDevice(reason = "Disconnected") {
+  clearAuthWatchdog();
   await stopActiveStream();
   if (adb) {
     try { await adb.close(); } catch {}
     adb = null;
+  }
+  if (activeConnection) {
+    try { await activeConnection.readable.cancel(); } catch {}
+    try { await activeConnection.writable.close(); } catch {}
+    activeConnection = null;
   }
   connected = false;
   currentDisplayId = null;
@@ -340,6 +368,7 @@ async function disconnectDevice(reason = "Disconnected") {
   headerDisplaySelect.hidden = true;
   fsButton.hidden = true;
   disconnectButton.hidden = true;
+  cancelConnectButton.hidden = true;
   connectButton.disabled = false;
   displayBadge.textContent = "AUTO DISPLAY";
   setStatus(reason, false);
@@ -380,6 +409,30 @@ headerDisplaySelect.addEventListener("change", async () => {
   }
 });
 
+cancelConnectButton.addEventListener("click", async () => {
+  connectAttemptId++;
+  await disconnectDevice("Disconnected");
+  log("Connection attempt canceled.");
+});
+
+resetKeysButton.addEventListener("click", async () => {
+  try {
+    if (typeof indexedDB.databases === "function") {
+      const dbs = await indexedDB.databases();
+      for (const db of dbs) {
+        if (db.name && /adb|tango|webadb|credential/i.test(db.name)) {
+          indexedDB.deleteDatabase(db.name);
+        }
+      }
+    }
+    indexedDB.deleteDatabase("AdbWebCredentialStore");
+    indexedDB.deleteDatabase("ya-webadb");
+    log("Cleared stored browser ADB keys. On your phone, also tap 'Revoke USB debugging authorizations' in Developer Options if you want a fresh prompt.");
+  } catch (err) {
+    log("Could not clear IndexedDB keys: " + friendlyError(err));
+  }
+});
+
 disconnectButton.addEventListener("click", async () => {
   await disconnectDevice("Disconnected");
   log("Disconnected from Android device.");
@@ -387,7 +440,7 @@ disconnectButton.addEventListener("click", async () => {
 
 if ("usb" in navigator) {
   navigator.usb.addEventListener("disconnect", async () => {
-    if (adb || connected) {
+    if (adb || activeConnection || connected) {
       await disconnectDevice("USB Disconnected");
       log("USB device was disconnected.");
     }
@@ -396,7 +449,9 @@ if ("usb" in navigator) {
 
 connectButton.addEventListener("click", async () => {
   if (connected) return;
+  const attempt = ++connectAttemptId;
   connectButton.disabled = true;
+  cancelConnectButton.hidden = false;
   detectedPicker.style.display = "none";
   setStatus("Loading libraries…");
   log("Loading ADB and Scrcpy browser libraries…");
@@ -421,6 +476,7 @@ connectButton.addEventListener("click", async () => {
       import("https://esm.sh/@yume-chan/scrcpy-decoder-tinyh264"),
       import("https://esm.sh/@yume-chan/adb-credential-web@2.1.0")
     ]);
+    if (attempt !== connectAttemptId) return;
 
     const adbModule = unwrapModule(rawAdb);
     const usbModule = unwrapModule(rawUsb);
@@ -434,13 +490,19 @@ connectButton.addEventListener("click", async () => {
     setStatus("Choose device…");
     log("Select your Android device in the browser's USB permission window.");
     const device = await Manager.requestDevice();
+    if (attempt !== connectAttemptId) return;
     if (!device) throw new Error("No device was selected.");
 
-    setStatus("Connecting…");
-    log("Opening the ADB USB connection…");
+    setStatus("Connecting USB…");
+    log(`Opening USB interface for ${device.serial}…`);
     const connection = await device.connect();
+    if (attempt !== connectAttemptId) {
+      try { await connection.readable.cancel(); } catch {}
+      try { await connection.writable.close(); } catch {}
+      return;
+    }
+    activeConnection = connection;
 
-    // @yume-chan/adb-credential-web@2.1.0 exports AdbWebCredentialStore as its default export
     const AdbWebCredentialStore =
       typeof rawCredential.default === "function"
         ? rawCredential.default
@@ -451,14 +513,34 @@ connectButton.addEventListener("click", async () => {
     }
 
     const credentialStore = new AdbWebCredentialStore("Workspace Monitor");
+    setStatus("Waiting for phone…");
     log("Authenticating ADB session… Check your Android screen if a USB debugging prompt appears.");
+
+    clearAuthWatchdog();
+    authWatchdog = setTimeout(() => {
+      if (attempt !== connectAttemptId || adb) return;
+      setStatus("No response from phone");
+      log(
+        "Still waiting for Android to respond to the ADB handshake. If no prompt appeared on your phone:\n" +
+        "1. Run `adb kill-server` on your PC or close Android Studio / desktop Scrcpy.\n" +
+        "2. Unlock your phone and switch USB mode to File Transfer (MTP).\n" +
+        "3. Toggle USB debugging OFF and back ON in Developer Options, replug the cable, then click Cancel and retry."
+      );
+    }, 5000);
 
     const transport = await adbModule.AdbDaemonTransport.authenticate({
       serial: device.serial,
       connection,
       credentialStore
     });
+    clearAuthWatchdog();
+    if (attempt !== connectAttemptId) {
+      try { await transport.close(); } catch {}
+      return;
+    }
+
     adb = new adbModule.Adb(transport);
+    activeConnection = null;
 
     setStatus("Preparing server…");
     log("Downloading and pushing the Scrcpy 3.1 server…");
@@ -467,12 +549,14 @@ connectButton.addEventListener("click", async () => {
       throw new Error("Could not download the Scrcpy server. Check your internet connection.");
     }
     await scrcpyModule.AdbScrcpyClient.pushServer(adb, response.body);
+    if (attempt !== connectAttemptId) return;
 
     setStatus("Detecting displays…");
     log("Querying available displays on the device…");
     const displays = await detectDeviceDisplays(adb, scrcpyModule);
     updateDisplaySelectors(displays, requestedDisplayId ?? displays[0]?.id ?? 0);
     disconnectButton.hidden = false;
+    cancelConnectButton.hidden = true;
 
     if (requestedDisplayId !== null || displays.length === 1) {
       const targetId = requestedDisplayId !== null ? requestedDisplayId : displays[0].id;
@@ -499,6 +583,7 @@ connectButton.addEventListener("click", async () => {
     setStatus("Choose display", true);
     log(`Found ${displays.length} displays (${displays.map((d) => `Display ${d.id}`).join(", ")}). Select one above or in the header.`);
   } catch (error) {
+    if (attempt !== connectAttemptId) return;
     console.error(error);
     const message = friendlyError(error);
     await disconnectDevice("Disconnected");
