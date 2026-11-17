@@ -47,7 +47,7 @@ body.fullscreen #floatExit{display:block}
 #log{margin-top:14px;background:#101820;border:1px solid #334252;border-radius:7px;padding:10px;font-size:12px;color:#b8c7d8;white-space:pre-wrap;max-height:105px;overflow:auto}
 #help{font-size:12px;color:#91a1b3;margin-top:10px}
 @media(max-width:720px){
-  header{padding:0 12px;height:auto;min-height:60px;py:8px}
+  header{padding:0 12px;height:auto;min-height:60px}
   .brand{font-size:14px}
   .tag{display:none}
   .status{font-size:11px;padding:5px 9px}
@@ -150,41 +150,11 @@ function friendlyError(error) {
   return message;
 }
 
-// Unwrap esm.sh modules that place named exports under `.default`
 function unwrapModule(mod) {
   if (mod?.default && typeof mod.default === "object") {
     return { ...mod.default, ...mod };
   }
   return mod;
-}
-
-// Fallback key storage if TangoLocalStorage is ever omitted by a CDN bundle
-class FallbackLocalKeyStorage {
-  constructor(storageKey = "workspace-adb-key") {
-    this.storageKey = storageKey;
-  }
-  save(privateKey, name) {
-    const bytes = privateKey instanceof Uint8Array ? privateKey : new Uint8Array(privateKey);
-    let binary = "";
-    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-    localStorage.setItem(this.storageKey, JSON.stringify({
-      privateKey: btoa(binary),
-      name: name ?? "Workspace Monitor"
-    }));
-  }
-  *load() {
-    const raw = localStorage.getItem(this.storageKey);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw);
-      const binary = atob(parsed.privateKey);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      yield { privateKey: bytes, name: parsed.name };
-    } catch {
-      localStorage.removeItem(this.storageKey);
-    }
-  }
 }
 
 initialDisplayMode.addEventListener("change", () => {
@@ -257,6 +227,16 @@ async function detectDeviceDisplays(adbClient, scrcpyModule) {
   ];
 }
 
+function mountRenderer(rendererCanvas) {
+  if (!rendererCanvas) return;
+  rendererCanvas.id = "screen";
+  rendererCanvas.style.display = "block";
+  if (rendererCanvas !== canvas) {
+    canvas.replaceWith(rendererCanvas);
+    canvas = rendererCanvas;
+  }
+}
+
 async function stopActiveStream() {
   streamToken++;
   if (scrcpyClient) {
@@ -267,10 +247,11 @@ async function stopActiveStream() {
     try { await decoder.dispose(); } catch {}
     decoder = null;
   }
-  // Replace canvas so switching between displays with different resolutions gets a clean context
-  const freshCanvas = canvas.cloneNode(false);
-  canvas.replaceWith(freshCanvas);
-  canvas = freshCanvas;
+  const placeholder = document.createElement("canvas");
+  placeholder.id = "screen";
+  placeholder.style.display = "none";
+  canvas.replaceWith(placeholder);
+  canvas = placeholder;
 }
 
 async function startDisplayStream(displayId) {
@@ -316,7 +297,8 @@ async function startDisplayStream(displayId) {
   const video = await scrcpyClient.videoStream;
   if (myToken !== streamToken) return;
 
-  decoder = new decoderModule.TinyH264Decoder({ canvas });
+  decoder = new decoderModule.TinyH264Decoder();
+  mountRenderer(decoder.renderer || canvas);
   currentDisplayId = Number(displayId);
 
   if (!availableDisplays.some((d) => d.id === currentDisplayId)) {
@@ -324,7 +306,6 @@ async function startDisplayStream(displayId) {
   }
   updateDisplaySelectors(availableDisplays, currentDisplayId);
 
-  canvas.style.display = "block";
   splash.style.display = "none";
   detectedPicker.style.display = "none";
   fsButton.hidden = false;
@@ -445,8 +426,7 @@ connectButton.addEventListener("click", async () => {
     const usbModule = unwrapModule(rawUsb);
     const scrcpyModule = unwrapModule(rawScrcpy);
     const decoderModule = unwrapModule(rawDecoder);
-    const credentialModule = unwrapModule(rawCredential);
-    libs = { adbModule, usbModule, scrcpyModule, decoderModule, credentialModule };
+    libs = { adbModule, usbModule, scrcpyModule, decoderModule };
 
     const Manager = usbModule.AdbDaemonWebUsbDeviceManager?.BROWSER;
     if (!Manager) throw new Error("This browser does not provide WebUSB.");
@@ -460,31 +440,23 @@ connectButton.addEventListener("click", async () => {
     log("Opening the ADB USB connection…");
     const connection = await device.connect();
 
-    const CredentialManager =
-      credentialModule.AdbWebCryptoCredentialManager ||
-      credentialModule.AdbWebCredentialStore;
-    if (typeof CredentialManager !== "function") {
-      throw new Error(
-        "AdbWebCryptoCredentialManager was not found in @yume-chan/adb-credential-web. Keys: " +
-        Object.keys(credentialModule).join(", ")
-      );
+    // @yume-chan/adb-credential-web@2.1.0 exports AdbWebCredentialStore as its default export
+    const AdbWebCredentialStore =
+      typeof rawCredential.default === "function"
+        ? rawCredential.default
+        : rawCredential.AdbWebCredentialStore;
+
+    if (typeof AdbWebCredentialStore !== "function") {
+      throw new Error("Could not load AdbWebCredentialStore from @yume-chan/adb-credential-web.");
     }
 
-    const Storage =
-      credentialModule.TangoLocalStorage ||
-      credentialModule.TangoIndexedDbStorage ||
-      FallbackLocalKeyStorage;
+    const credentialStore = new AdbWebCredentialStore("Workspace Monitor");
+    log("Authenticating ADB session… Check your Android screen if a USB debugging prompt appears.");
 
-    const credentialStorage = new Storage("workspace-adb-key");
-    const credentialManager = new CredentialManager(credentialStorage);
-
-    const transport = await adbModule.adbDaemonAuthenticate({
+    const transport = await adbModule.AdbDaemonTransport.authenticate({
       serial: device.serial,
       connection,
-      credentialManager,
-      onPublicKeyAuthentication: () => {
-        log("Waiting for you to approve this computer's ADB key on the Android device…");
-      }
+      credentialStore
     });
     adb = new adbModule.Adb(transport);
 
@@ -502,14 +474,12 @@ connectButton.addEventListener("click", async () => {
     updateDisplaySelectors(displays, requestedDisplayId ?? displays[0]?.id ?? 0);
     disconnectButton.hidden = false;
 
-    // If user chose a specific display up front, or the device only has 1 display, launch immediately
     if (requestedDisplayId !== null || displays.length === 1) {
       const targetId = requestedDisplayId !== null ? requestedDisplayId : displays[0].id;
       await startDisplayStream(targetId);
       return;
     }
 
-    // Multiple displays detected in Auto-detect mode: let the user pick which one to stream
     detectedList.innerHTML = "";
     for (const d of displays) {
       const btn = document.createElement("button");
