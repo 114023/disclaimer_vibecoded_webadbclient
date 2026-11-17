@@ -104,16 +104,18 @@ connectButton.addEventListener("click", async () => {
     // Load real ES modules. The previous script tags pointed to jsdelivr.net itself,
     // which does not expose the required ADB/Scrcpy classes.
     const [
-      adbModule,
-      usbModule,
-      scrcpyModule,
-      decoderModule
-    ] = await Promise.all([
-      import("https://esm.sh/@yume-chan/adb"),
-      import("https://esm.sh/@yume-chan/adb-daemon-webusb"),
-      import("https://esm.sh/@yume-chan/adb-scrcpy"),
-      import("https://esm.sh/@yume-chan/scrcpy-decoder-tinyh264")
-    ]);
+  adbModule,
+  usbModule,
+  scrcpyModule,
+  decoderModule,
+  credentialModule
+] = await Promise.all([
+  import("https://esm.sh/@yume-chan/adb"),
+  import("https://esm.sh/@yume-chan/adb-daemon-webusb"),
+  import("https://esm.sh/@yume-chan/adb-scrcpy"),
+  import("https://esm.sh/@yume-chan/scrcpy-decoder-tinyh264"),
+  import("https://esm.sh/@yume-chan/adb-credential-web")
+]);
 
     const Manager = usbModule.AdbDaemonWebUsbDeviceManager.BROWSER;
     if (!Manager) throw new Error("This browser does not provide WebUSB.");
