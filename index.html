@@ -130,9 +130,14 @@ connectButton.addEventListener("click", async () => {
     log("Opening the ADB USB connection…");
     const connection = await device.connect();
 
-    console.log("Credential exports:", Object.keys(credentialModule));
+    const credentialModule = await import(
+  "https://esm.sh/@yume-chan/adb-credential-web@2.1.0?bundle"
+);
 
-const credentialStorage = new credentialModule.TangoIndexedDbStorage();
+console.log("Credential exports:", Object.keys(credentialModule));
+
+const credentialStorage =
+  new credentialModule.TangoLocalStorage("workspace-adb-key");
 
 const credentialManager =
   new credentialModule.AdbWebCryptoCredentialManager(
