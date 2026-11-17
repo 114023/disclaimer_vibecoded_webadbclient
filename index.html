@@ -10,34 +10,60 @@
 html,body{margin:0;width:100%;height:100%;background:var(--bg);color:#e7edf5;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
 #app{height:100%;display:flex;flex-direction:column}
 header{height:64px;flex:none;background:var(--panel);border-bottom:2px solid var(--cyan);display:flex;align-items:center;justify-content:space-between;padding:0 22px;gap:16px;z-index:5}
-.brand{font-weight:750;letter-spacing:.3px}.tag{font-size:10px;background:var(--cyan);color:#061014;border-radius:4px;padding:3px 6px;margin-left:8px;font-weight:800}
-.controls{display:flex;align-items:center;gap:12px}.status{display:flex;align-items:center;gap:8px;background:#121a22;padding:7px 12px;border-radius:20px;font-size:13px;color:#bdc9d8}
-.dot{width:8px;height:8px;border-radius:50%;background:#ff5555}.dot.ok{background:#00e6ad;box-shadow:0 0 8px #00e6ad}
-button{border:0;border-radius:6px;padding:10px 16px;font-weight:650;cursor:pointer;transition:.15s}
-button:disabled{opacity:.45;cursor:not-allowed}
-.primary{background:var(--cyan);color:#061014}.secondary{background:#354353;color:white;border:1px solid #536478}
+.brand{font-weight:750;letter-spacing:.3px;white-space:nowrap}
+.tag{font-size:10px;background:var(--cyan);color:#061014;border-radius:4px;padding:3px 6px;margin-left:8px;font-weight:800}
+.controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.status{display:flex;align-items:center;gap:8px;background:#121a22;padding:7px 12px;border-radius:20px;font-size:13px;color:#bdc9d8}
+.dot{width:8px;height:8px;border-radius:50%;background:#ff5555}
+.dot.ok{background:#00e6ad;box-shadow:0 0 8px #00e6ad}
+button,select,input{border:0;border-radius:6px;font-family:inherit;font-size:13px}
+button{padding:9px 14px;font-weight:650;cursor:pointer;transition:.15s}
+button:disabled,select:disabled{opacity:.45;cursor:not-allowed}
+.primary{background:var(--cyan);color:#061014}
+.secondary{background:#354353;color:white;border:1px solid #536478}
+select,input{background:#121a22;color:#e7edf5;border:1px solid #445569;padding:8px 11px}
+select:focus,input:focus{outline:1px solid var(--cyan);border-color:var(--cyan)}
 button:hover:not(:disabled){filter:brightness(1.08);transform:translateY(-1px)}
 #viewport{position:relative;flex:1;min-height:0;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
 #splash{width:min(560px,calc(100% - 32px));background:var(--panel);border:1px solid #354252;border-radius:12px;padding:28px;box-shadow:0 12px 38px #0009}
-h1{font-size:23px;margin:0 0 10px}p{color:var(--muted);font-size:14px;line-height:1.5}
+h1{font-size:23px;margin:0 0 10px}
+p{color:var(--muted);font-size:14px;line-height:1.5}
 .steps{padding-left:20px;color:#c4cfdd;font-size:13px;line-height:1.7}
-#connect{margin-top:10px;width:100%;font-size:15px;padding:13px}
+.field-row{display:flex;gap:10px;align-items:center;margin-top:14px}
+.field-row label{font-size:13px;color:#c4cfdd;white-space:nowrap;font-weight:600}
+.field-row select{flex:1;min-width:0}
+.field-row input[type="number"]{width:96px}
+#detectedPicker{display:none;margin-top:14px;padding:14px;background:#141c24;border:1px solid #394b5e;border-radius:8px}
+#detectedPicker .picker-title{font-size:13px;font-weight:650;color:#e7edf5;margin-bottom:8px}
+#detectedList{display:flex;flex-direction:column;gap:8px}
+.display-option{display:flex;align-items:center;justify-content:space-between;background:#1f2833;border:1px solid #3d4f63;border-radius:6px;padding:10px 12px;color:#e7edf5;text-align:left}
+.display-option:hover{border-color:var(--cyan)}
+.display-option span{font-size:12px;color:var(--muted)}
+#connect{margin-top:14px;width:100%;font-size:15px;padding:13px}
 #screen{display:none;max-width:100%;max-height:100%;object-fit:contain;background:#000}
 #floatExit{display:none;position:absolute;top:14px;right:14px;z-index:8;background:#111d;color:white;border:1px solid #ffffff44}
 body.fullscreen header{display:none}
 body.fullscreen #floatExit{display:block}
 #log{margin-top:14px;background:#101820;border:1px solid #334252;border-radius:7px;padding:10px;font-size:12px;color:#b8c7d8;white-space:pre-wrap;max-height:105px;overflow:auto}
 #help{font-size:12px;color:#91a1b3;margin-top:10px}
-@media(max-width:600px){header{padding:0 12px}.brand{font-size:14px}.tag{display:none}.status{font-size:11px}.controls{gap:7px}}
+@media(max-width:720px){
+  header{padding:0 12px;height:auto;min-height:60px;py:8px}
+  .brand{font-size:14px}
+  .tag{display:none}
+  .status{font-size:11px;padding:5px 9px}
+  .controls{gap:6px}
+}
 </style>
 </head>
 <body>
 <div id="app">
 <header>
-  <div class="brand">Workspace Monitor <span class="tag">VIRTUAL DISPLAY 1</span></div>
+  <div class="brand">Workspace Monitor <span id="displayBadge" class="tag">AUTO DISPLAY</span></div>
   <div class="controls">
+    <select id="headerDisplaySelect" title="Select Android Display" hidden></select>
     <div class="status"><span id="dot" class="dot"></span><span id="status">Disconnected</span></div>
     <button id="fs" class="secondary" hidden>Go Fullscreen</button>
+    <button id="disconnect" class="secondary" hidden>Disconnect</button>
   </div>
 </header>
 <main id="viewport">
@@ -49,6 +75,23 @@ body.fullscreen #floatExit{display:block}
       <li>Connect the device with a data-capable USB cable and enable USB debugging.</li>
       <li>Close other ADB programs if the device is already in use.</li>
     </ol>
+
+    <div class="field-row">
+      <label for="initialDisplayMode">Target Display:</label>
+      <select id="initialDisplayMode">
+        <option value="auto" selected>Auto-detect device displays</option>
+        <option value="0">Display 0 (Primary Screen)</option>
+        <option value="1">Display 1 (Secondary / Virtual)</option>
+        <option value="custom">Custom Display ID…</option>
+      </select>
+      <input id="customDisplayInput" type="number" min="0" step="1" value="1" placeholder="ID" hidden>
+    </div>
+
+    <div id="detectedPicker">
+      <div class="picker-title">Multiple displays found on this device — choose one to stream:</div>
+      <div id="detectedList"></div>
+    </div>
+
     <button id="connect" class="primary">⚡ Connect Android Device</button>
     <div id="log" role="status">Ready. Libraries load when you connect.</div>
     <div id="help">Uses Tango ADB / Scrcpy browser packages from esm.sh. Requires Chrome or Edge, HTTPS or localhost, and an internet connection.</div>
@@ -57,29 +100,46 @@ body.fullscreen #floatExit{display:block}
   <button id="floatExit">✕ Exit Fullscreen</button>
 </main>
 </div>
+
 <script type="module">
 const $ = (id) => document.getElementById(id);
 const connectButton = $("connect");
+const disconnectButton = $("disconnect");
 const statusLabel = $("status");
 const dot = $("dot");
 const logBox = $("log");
 const splash = $("splash");
-const canvas = $("screen");
 const fsButton = $("fs");
+const displayBadge = $("displayBadge");
+const initialDisplayMode = $("initialDisplayMode");
+const customDisplayInput = $("customDisplayInput");
+const detectedPicker = $("detectedPicker");
+const detectedList = $("detectedList");
+const headerDisplaySelect = $("headerDisplaySelect");
+
+const SERVER_PATH = "/data/local/tmp/scrcpy-server.jar";
+const SERVER_URL = "https://github.com/Genymobile/scrcpy/releases/download/v3.1/scrcpy-server-v3.1";
+
+let canvas = $("screen");
+let libs = null;
 let adb = null;
 let scrcpyClient = null;
 let decoder = null;
-let usbDevice = null;
 let connected = false;
+let currentDisplayId = null;
+let availableDisplays = [];
+let streamToken = 0;
 
 function log(message) {
   logBox.textContent = message;
   console.info("[Workspace Monitor]", message);
 }
+
 function setStatus(message, isConnected = false) {
   statusLabel.textContent = message;
   dot.classList.toggle("ok", isConnected);
 }
+
 function friendlyError(error) {
   const name = error?.name || "";
   const message = error?.message || String(error);
@@ -90,25 +150,289 @@ function friendlyError(error) {
   return message;
 }
 
+// Unwrap esm.sh modules that place named exports under `.default`
+function unwrapModule(mod) {
+  if (mod?.default && typeof mod.default === "object") {
+    return { ...mod.default, ...mod };
+  }
+  return mod;
+}
+
+// Fallback key storage if TangoLocalStorage is ever omitted by a CDN bundle
+class FallbackLocalKeyStorage {
+  constructor(storageKey = "workspace-adb-key") {
+    this.storageKey = storageKey;
+  }
+  save(privateKey, name) {
+    const bytes = privateKey instanceof Uint8Array ? privateKey : new Uint8Array(privateKey);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    localStorage.setItem(this.storageKey, JSON.stringify({
+      privateKey: btoa(binary),
+      name: name ?? "Workspace Monitor"
+    }));
+  }
+  *load() {
+    const raw = localStorage.getItem(this.storageKey);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw);
+      const binary = atob(parsed.privateKey);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      yield { privateKey: bytes, name: parsed.name };
+    } catch {
+      localStorage.removeItem(this.storageKey);
+    }
+  }
+}
+
+initialDisplayMode.addEventListener("change", () => {
+  customDisplayInput.hidden = initialDisplayMode.value !== "custom";
+});
+
+function getRequestedInitialDisplayId() {
+  const mode = initialDisplayMode.value;
+  if (mode === "auto") return null;
+  if (mode === "custom") {
+    const parsed = Number.parseInt(customDisplayInput.value, 10);
+    if (!Number.isInteger(parsed) || parsed < 0) {
+      throw new Error("Enter a valid non-negative Display ID (for example, 0 or 1).");
+    }
+    return parsed;
+  }
+  return Number.parseInt(mode, 10);
+}
+
+function updateDisplaySelectors(displays, selectedId) {
+  availableDisplays = displays;
+  headerDisplaySelect.innerHTML = "";
+
+  for (const d of displays) {
+    const opt = document.createElement("option");
+    opt.value = String(d.id);
+    const label = d.resolution
+      ? `Display ${d.id} (${d.resolution})`
+      : d.id === 0
+        ? "Display 0 (Primary)"
+        : `Display ${d.id}`;
+    opt.textContent = label;
+    if (d.id === selectedId) opt.selected = true;
+    headerDisplaySelect.appendChild(opt);
+  }
+
+  const customOpt = document.createElement("option");
+  customOpt.value = "custom";
+  customOpt.textContent = "Custom Display ID…";
+  headerDisplaySelect.appendChild(customOpt);
+
+  headerDisplaySelect.hidden = false;
+  if (selectedId !== null && selectedId !== undefined) {
+    displayBadge.textContent = `DISPLAY ${selectedId}`;
+  }
+}
+
+async function detectDeviceDisplays(adbClient, scrcpyModule) {
+  const Options = scrcpyModule.AdbScrcpyOptions3_1;
+  if (typeof scrcpyModule.AdbScrcpyClient?.getDisplays === "function" && Options) {
+    try {
+      const list = await scrcpyModule.AdbScrcpyClient.getDisplays(
+        adbClient,
+        SERVER_PATH,
+        new Options({ tunnelForward: true })
+      );
+      if (Array.isArray(list) && list.length > 0) {
+        return list.map((d) => ({
+          id: Number(d.id),
+          resolution: d.resolution || ""
+        }));
+      }
+    } catch (err) {
+      console.warn("getDisplays fallback triggered:", err);
+    }
+  }
+  return [
+    { id: 0, resolution: "Primary" },
+    { id: 1, resolution: "Secondary" }
+  ];
+}
+
+async function stopActiveStream() {
+  streamToken++;
+  if (scrcpyClient) {
+    try { await scrcpyClient.close(); } catch {}
+    scrcpyClient = null;
+  }
+  if (decoder) {
+    try { await decoder.dispose(); } catch {}
+    decoder = null;
+  }
+  // Replace canvas so switching between displays with different resolutions gets a clean context
+  const freshCanvas = canvas.cloneNode(false);
+  canvas.replaceWith(freshCanvas);
+  canvas = freshCanvas;
+}
+
+async function startDisplayStream(displayId) {
+  if (!adb || !libs) return;
+  const { scrcpyModule, decoderModule } = libs;
+
+  headerDisplaySelect.disabled = true;
+  setStatus(`Starting Display ${displayId}…`, true);
+  log(`Starting Scrcpy on Android display ${displayId}…`);
+
+  await stopActiveStream();
+  const myToken = streamToken;
+
+  const Options = scrcpyModule.AdbScrcpyOptions3_1;
+  if (!Options) {
+    throw new Error("The loaded Scrcpy package does not include the 3.1 options class.");
+  }
+
+  const options = new Options({
+    displayId: Number(displayId),
+    video: true,
+    audio: false,
+    control: true,
+    videoBitRate: 12000000,
+    maxFps: 60,
+    tunnelForward: true
+  });
+
+  const client = await scrcpyModule.AdbScrcpyClient.start(
+    adb,
+    SERVER_PATH,
+    options
+  );
+  if (myToken !== streamToken) {
+    try { await client.close(); } catch {}
+    return;
+  }
+  scrcpyClient = client;
+
+  if (!scrcpyClient.videoStream) {
+    throw new Error(`Display ${displayId} did not produce a video stream. Verify that display ID exists on the device.`);
+  }
+  const video = await scrcpyClient.videoStream;
+  if (myToken !== streamToken) return;
+
+  decoder = new decoderModule.TinyH264Decoder({ canvas });
+  currentDisplayId = Number(displayId);
+
+  if (!availableDisplays.some((d) => d.id === currentDisplayId)) {
+    availableDisplays.push({ id: currentDisplayId, resolution: "" });
+  }
+  updateDisplaySelectors(availableDisplays, currentDisplayId);
+
+  canvas.style.display = "block";
+  splash.style.display = "none";
+  detectedPicker.style.display = "none";
+  fsButton.hidden = false;
+  disconnectButton.hidden = false;
+  headerDisplaySelect.disabled = false;
+  connected = true;
+
+  setStatus(`Live: Display ${currentDisplayId}`, true);
+  log(`Connected to Display ${currentDisplayId}. Video codec: ${video.metadata.codec}.`);
+
+  void video.stream.pipeTo(decoder.writable).catch((error) => {
+    if (myToken !== streamToken) return;
+    console.error(error);
+    setStatus("Stream ended");
+    log(`Display ${currentDisplayId} stream ended: ` + friendlyError(error));
+    headerDisplaySelect.disabled = false;
+  });
+}
+
+async function disconnectDevice(reason = "Disconnected") {
+  await stopActiveStream();
+  if (adb) {
+    try { await adb.close(); } catch {}
+    adb = null;
+  }
+  connected = false;
+  currentDisplayId = null;
+  availableDisplays = [];
+  canvas.style.display = "none";
+  splash.style.display = "block";
+  detectedPicker.style.display = "none";
+  headerDisplaySelect.hidden = true;
+  fsButton.hidden = true;
+  disconnectButton.hidden = true;
+  connectButton.disabled = false;
+  displayBadge.textContent = "AUTO DISPLAY";
+  setStatus(reason, false);
+}
+
+headerDisplaySelect.addEventListener("change", async () => {
+  const val = headerDisplaySelect.value;
+  let targetId;
+
+  if (val === "custom") {
+    const input = window.prompt("Enter Android Display ID (e.g. 0, 1, 2):", String(currentDisplayId ?? 0));
+    if (input === null) {
+      headerDisplaySelect.value = String(currentDisplayId);
+      return;
+    }
+    targetId = Number.parseInt(input.trim(), 10);
+    if (!Number.isInteger(targetId) || targetId < 0) {
+      log("Invalid Display ID. Please enter a non-negative integer.");
+      headerDisplaySelect.value = String(currentDisplayId);
+      return;
+    }
+  } else {
+    targetId = Number.parseInt(val, 10);
+  }
+
+  if (targetId === currentDisplayId) return;
+
+  try {
+    await startDisplayStream(targetId);
+  } catch (error) {
+    console.error(error);
+    headerDisplaySelect.disabled = false;
+    setStatus(`Error on Display ${targetId}`, true);
+    log(`Could not switch to Display ${targetId}: ` + friendlyError(error));
+    if (currentDisplayId !== null) {
+      headerDisplaySelect.value = String(currentDisplayId);
+    }
+  }
+});
+
+disconnectButton.addEventListener("click", async () => {
+  await disconnectDevice("Disconnected");
+  log("Disconnected from Android device.");
+});
+
+if ("usb" in navigator) {
+  navigator.usb.addEventListener("disconnect", async () => {
+    if (adb || connected) {
+      await disconnectDevice("USB Disconnected");
+      log("USB device was disconnected.");
+    }
+  });
+}
+
 connectButton.addEventListener("click", async () => {
   if (connected) return;
   connectButton.disabled = true;
+  detectedPicker.style.display = "none";
   setStatus("Loading libraries…");
   log("Loading ADB and Scrcpy browser libraries…");
 
   try {
+    const requestedDisplayId = getRequestedInitialDisplayId();
+
     if (!window.isSecureContext || !("usb" in navigator)) {
       throw new Error("WebUSB requires Chrome/Edge and a secure page (HTTPS or localhost).");
     }
 
-    // Load real ES modules. The previous script tags pointed to jsdelivr.net itself,
-    // which does not expose the required ADB/Scrcpy classes.
     const [
-      adbModule,
-      usbModule,
-      scrcpyModule,
-      decoderModule,
-      credentialModule
+      rawAdb,
+      rawUsb,
+      rawScrcpy,
+      rawDecoder,
+      rawCredential
     ] = await Promise.all([
       import("https://esm.sh/@yume-chan/adb@2.1.0"),
       import("https://esm.sh/@yume-chan/adb-daemon-webusb@2.1.0"),
@@ -117,42 +441,43 @@ connectButton.addEventListener("click", async () => {
       import("https://esm.sh/@yume-chan/adb-credential-web@2.1.0")
     ]);
 
-    const Manager = usbModule.AdbDaemonWebUsbDeviceManager.BROWSER;
+    const adbModule = unwrapModule(rawAdb);
+    const usbModule = unwrapModule(rawUsb);
+    const scrcpyModule = unwrapModule(rawScrcpy);
+    const decoderModule = unwrapModule(rawDecoder);
+    const credentialModule = unwrapModule(rawCredential);
+    libs = { adbModule, usbModule, scrcpyModule, decoderModule, credentialModule };
+
+    const Manager = usbModule.AdbDaemonWebUsbDeviceManager?.BROWSER;
     if (!Manager) throw new Error("This browser does not provide WebUSB.");
 
     setStatus("Choose device…");
     log("Select your Android device in the browser's USB permission window.");
     const device = await Manager.requestDevice();
     if (!device) throw new Error("No device was selected.");
-    usbDevice = device;
 
     setStatus("Connecting…");
     log("Opening the ADB USB connection…");
     const connection = await device.connect();
 
-    // credentialModule was already imported in the Promise.all above.
-    // Do not redeclare it here: a duplicate const declaration prevents this
-    // entire module script from running, so the Connect button gets no handler.
-    console.log("Credential exports:", Object.keys(credentialModule));
-
-    const Storage = credentialModule.TangoLocalStorage;
-    const CredentialManager = credentialModule.AdbWebCryptoCredentialManager;
-
-    if (typeof Storage !== "function") {
-      throw new Error(
-        "TangoLocalStorage was not exported by @yume-chan/adb-credential-web. Exports: " +
-        Object.keys(credentialModule).join(", ")
-      );
-    }
+    const CredentialManager =
+      credentialModule.AdbWebCryptoCredentialManager ||
+      credentialModule.AdbWebCredentialStore;
     if (typeof CredentialManager !== "function") {
       throw new Error(
-        "AdbWebCryptoCredentialManager was not exported by @yume-chan/adb-credential-web. Exports: " +
+        "AdbWebCryptoCredentialManager was not found in @yume-chan/adb-credential-web. Keys: " +
         Object.keys(credentialModule).join(", ")
       );
     }
+
+    const Storage =
+      credentialModule.TangoLocalStorage ||
+      credentialModule.TangoIndexedDbStorage ||
+      FallbackLocalKeyStorage;
 
     const credentialStorage = new Storage("workspace-adb-key");
     const credentialManager = new CredentialManager(credentialStorage);
+
     const transport = await adbModule.adbDaemonAuthenticate({
       serial: device.serial,
       connection,
@@ -163,64 +488,51 @@ connectButton.addEventListener("click", async () => {
     });
     adb = new adbModule.Adb(transport);
 
-    // Scrcpy server 3.1 is the newest protocol version supported by this
-    // pinned options class. Download the official server binary and push it.
-    setStatus("Preparing stream…");
-    log("Downloading the Scrcpy 3.1 server…");
-    const serverUrl = "https://github.com/Genymobile/scrcpy/releases/download/v3.1/scrcpy-server-v3.1";
-    const response = await fetch(serverUrl);
+    setStatus("Preparing server…");
+    log("Downloading and pushing the Scrcpy 3.1 server…");
+    const response = await fetch(SERVER_URL);
     if (!response.ok || !response.body) {
-      throw new Error("Could not download the Scrcpy server. Check your internet connection or use the server-file fallback in the next revision.");
+      throw new Error("Could not download the Scrcpy server. Check your internet connection.");
     }
     await scrcpyModule.AdbScrcpyClient.pushServer(adb, response.body);
 
-    const Options = scrcpyModule.AdbScrcpyOptions3_1;
-    if (!Options) throw new Error("The loaded Scrcpy package does not include the 3.1 options class.");
-    const options = new Options({
-      displayId: 1,
-      video: true,
-      audio: false,
-      control: true,
-      videoBitRate: 12000000,
-      maxFps: 60,
-      tunnelForward: true
-    });
+    setStatus("Detecting displays…");
+    log("Querying available displays on the device…");
+    const displays = await detectDeviceDisplays(adb, scrcpyModule);
+    updateDisplaySelectors(displays, requestedDisplayId ?? displays[0]?.id ?? 0);
+    disconnectButton.hidden = false;
 
-    log("Starting Scrcpy on Android display 1…");
-    scrcpyClient = await scrcpyModule.AdbScrcpyClient.start(
-      adb,
-      "/data/local/tmp/scrcpy-server.jar",
-      options
-    );
+    // If user chose a specific display up front, or the device only has 1 display, launch immediately
+    if (requestedDisplayId !== null || displays.length === 1) {
+      const targetId = requestedDisplayId !== null ? requestedDisplayId : displays[0].id;
+      await startDisplayStream(targetId);
+      return;
+    }
 
-    if (!scrcpyClient.videoStream) throw new Error("Scrcpy started, but no video stream was created.");
-    const video = await scrcpyClient.videoStream;
-
-    decoder = new decoderModule.TinyH264Decoder({ canvas });
-    canvas.style.display = "block";
-    splash.style.display = "none";
-    fsButton.hidden = false;
-    connected = true;
-    setStatus("Live: Display 1", true);
-    log(`Connected. Video codec: ${video.metadata.codec}.`);
-
-    void video.stream.pipeTo(decoder.writable).catch((error) => {
-      console.error(error);
-      setStatus("Stream ended");
-      log("The video stream ended: " + friendlyError(error));
-      connected = false;
-      connectButton.disabled = false;
-    });
+    // Multiple displays detected in Auto-detect mode: let the user pick which one to stream
+    detectedList.innerHTML = "";
+    for (const d of displays) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "display-option";
+      btn.innerHTML = `<strong>Display ${d.id}${d.id === 0 ? " (Primary)" : ""}</strong><span>${d.resolution || "Click to stream"}</span>`;
+      btn.addEventListener("click", async () => {
+        try {
+          await startDisplayStream(d.id);
+        } catch (err) {
+          log(`Failed to start Display ${d.id}: ` + friendlyError(err));
+        }
+      });
+      detectedList.appendChild(btn);
+    }
+    detectedPicker.style.display = "block";
+    setStatus("Choose display", true);
+    log(`Found ${displays.length} displays (${displays.map((d) => `Display ${d.id}`).join(", ")}). Select one above or in the header.`);
   } catch (error) {
     console.error(error);
     const message = friendlyError(error);
-    setStatus("Disconnected");
+    await disconnectDevice("Disconnected");
     log("Connection failed: " + message);
-    connectButton.disabled = false;
-    if (adb) {
-      try { await adb.close(); } catch {}
-      adb = null;
-    }
   }
 });
 
